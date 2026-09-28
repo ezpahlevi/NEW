@@ -25,7 +25,7 @@ Updated: 2026-09-28
 
 ## Current phase
 
-- **Phase 5 implementation and local validation are complete on `feat/phase-2-d1-foundation`; Phase 5 CI is pending push.** [PR #1 remains open and unmerged](https://github.com/ezpahlevi/NEW/pull/1). Continue to Phase 6 only after the pushed Phase 5 head is green.
+- **Phase 5 is complete and pushed on `feat/phase-2-d1-foundation`; both GitHub Actions checks passed on head `ce5d231`.** [PR #1 remains open and unmerged](https://github.com/ezpahlevi/NEW/pull/1). Phase 6 is next.
 
 ## Blockers
 
@@ -43,19 +43,18 @@ Updated: 2026-09-28
 - `npx wrangler d1 migrations apply new-app --local` — a fresh Wrangler local store applied all five migrations successfully; the existing local store reports no pending migrations.
 - Wrangler D1 readback confirmed the seeded provider state and `snapshot_json` migration column; `vendor_wallet` remains `NULL`.
 - The five-migration Wrangler local store reports no pending migrations; readback confirms the seeded Figma provider state and `vendor_wallet = NULL`.
-- Both GitHub Actions checks passed on the prior PR head `1c1bbde`; Phase 5 CI has not run yet.
+- Both GitHub Actions checks passed on current PR head `ce5d231`, including Wrangler D1 migration application and seed readback.
 - `git diff --check` — passed. No lint script is configured.
 
 ## External integration status
 
-- GitHub: Phase 1 is pushed to `master`; Phases 2–4 are pushed on `feat/phase-2-d1-foundation`; Phase 5 is locally validated and awaits push/CI. [PR #1](https://github.com/ezpahlevi/NEW/pull/1) stays open and unmerged.
+- GitHub: Phase 1 is pushed to `master`; Phases 2–5 are pushed on `feat/phase-2-d1-foundation`; both CI checks passed on Phase 5 head `ce5d231`. [PR #1](https://github.com/ezpahlevi/NEW/pull/1) stays open and unmerged.
 - Cloudflare D1: local binding and migrations are configured and validated; remote D1 is not provisioned. Cloudflare Workflows are not implemented.
 - DemoSaaSProvider, immutable snapshots, and all three Mastra specialists are implemented and tested locally. The specialists use an OpenAI Chat Completions adapter; live LLM configuration is unverified and no live analysis has been run. No public fulfillment API route is wired yet. `NEW.sol`, Circle Agent Wallet, Arc RPC, and transaction flows are not implemented or invoked. Circle Agent Wallet support for Arc Mainnet is unverified and must be checked at the live-integration phase; Circle remains behind the future `WalletAdapter`.
 - Vercel is not configured or deployed. No credentials or keys were added to repository files, and no transactions were submitted.
 
 ## Next concrete tasks
 
-1. Push Phase 5 implementation and wait for its GitHub Actions checks to pass.
-2. Implement Phase 6: Controller Agent with backend-controlled plan and amount binding.
-3. Continue local phases in dependency order; before Workflows become authoritative, add a unique partial index on non-null `renewals.workflow_id` values.
-4. Defer remote D1 provisioning, Mainnet vendor configuration, Circle live integration, contract deployment, and real-money E2E to the final integration phases.
+1. Implement Phase 6: Controller Agent with backend-controlled plan and amount binding.
+2. Continue local phases in dependency order; before Workflows become authoritative, add a unique partial index on non-null `renewals.workflow_id` values.
+3. Defer remote D1 provisioning, Mainnet vendor configuration, Circle live integration, contract deployment, and real-money E2E to the final integration phases.

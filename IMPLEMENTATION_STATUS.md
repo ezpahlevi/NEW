@@ -22,7 +22,7 @@ Updated: 2026-09-28
 
 ## Current phase
 
-- **Phase 3 is complete on `feat/phase-2-d1-foundation`; [PR #1 remains open and unmerged](https://github.com/ezpahlevi/NEW/pull/1).** Both GitHub Actions checks passed on implementation commit `660fd57`. Phase 4 (immutable renewal snapshot) is next after the pending status-only follow-up is pushed and its current-head checks pass.
+- **Phase 3 is complete on `feat/phase-2-d1-foundation`; [PR #1 remains open and unmerged](https://github.com/ezpahlevi/NEW/pull/1).** Both GitHub Actions checks passed on head `7d86ac3`, including the Phase 3 implementation commit. Phase 4 (immutable renewal snapshot) is next.
 
 ## Blockers
 
@@ -38,19 +38,18 @@ Updated: 2026-09-28
 - `npm run build` — passed; Worker used `wrangler deploy --dry-run` only, and the Next.js production build succeeded.
 - `npx wrangler d1 migrations apply new-app --local` — migration `0004` applied successfully to the existing local D1 state. A separate fresh Wrangler local store applied all four migrations successfully.
 - Wrangler D1 readback confirmed Figma provider state `professional-8-seat`, 8 seats, active, `downgrade_seats = 3`, and `vendor_wallet = NULL`.
-- Both GitHub Actions checks passed on implementation commit `660fd57`; the status-only follow-up will trigger CI on its own head.
+- Both GitHub Actions checks passed on the current PR head `7d86ac3`, including Wrangler migration application and seed readback.
 - `git diff --check` — passed. No lint script is configured.
 
 ## External integration status
 
-- GitHub: Phase 1 is pushed to `master`; Phase 2 and Phase 3 are pushed on `feat/phase-2-d1-foundation`; [PR #1](https://github.com/ezpahlevi/NEW/pull/1) is open and unmerged. Phase 3 checks passed on implementation commit `660fd57`.
+- GitHub: Phase 1 is pushed to `master`; Phase 2 and Phase 3 are pushed on `feat/phase-2-d1-foundation`; [PR #1](https://github.com/ezpahlevi/NEW/pull/1) is open and unmerged with both CI checks passing on head `7d86ac3`.
 - Cloudflare D1: local binding and migrations are configured and validated; remote D1 is not provisioned. Cloudflare Workflows are not implemented.
 - DemoSaaSProvider state transitions are implemented and tested locally; no public fulfillment API route is wired yet. Mastra agents, `NEW.sol`, Circle Agent Wallet, Arc RPC, and transaction flows are not implemented or invoked. Circle Agent Wallet support for Arc Mainnet is unverified and must be checked at the live-integration phase; Circle remains behind the future `WalletAdapter`.
 - Vercel is not configured or deployed. No credentials or keys were added to repository files, and no transactions were submitted.
 
 ## Next concrete tasks
 
-1. Push the status-only follow-up and wait for its current-head CI to pass; do not merge.
-2. Then implement Phase 4: immutable renewal evidence snapshot, canonical serialization, hashing, and persisted snapshot JSON/hash.
+1. Implement Phase 4: immutable renewal evidence snapshot, canonical serialization, hashing, and persisted snapshot JSON/hash.
 3. Continue the remaining local phases in dependency order; before Workflows become authoritative, add a unique partial index on non-null `renewals.workflow_id` values.
 4. Defer remote D1 provisioning, Mainnet vendor configuration, Circle live integration, contract deployment, and real-money E2E to the final integration phases.

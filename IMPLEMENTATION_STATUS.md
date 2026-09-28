@@ -4,7 +4,8 @@ Updated: 2026-09-28
 
 ## Current repository state
 
-- Greenfield npm workspace created in the supplied working directory. Local Git metadata is initialized; no remote is configured.
+- Greenfield npm workspace in the supplied working directory. Git remote `origin` points to [ezpahlevi/NEW](https://github.com/ezpahlevi/NEW); commit `01ba1d9c2f5174ff5871e30d0334c60f6ff2268d` is pushed to `master`.
+- Current implementation branch: `feat/phase-2-d1-foundation`.
 - Canonical PRD copied verbatim to [docs/PRD.md](docs/PRD.md).
 - Workspaces: Next.js frontend in `apps/web`, Hono Cloudflare Worker in `apps/worker`, and shared Zod schemas/types in `packages/shared`.
 - Node.js 22.18.0 and npm 10.9.3 are the verified local runtimes. Pinned application versions are Next.js 16.3.6, React 19.3.0, Hono 4.13.9, Zod 4.6.5, Wrangler 4.142.0, and TypeScript 6.0.3. Wrangler types are generated from the Worker configuration.
@@ -19,7 +20,7 @@ Updated: 2026-09-28
 
 ## Current phase
 
-- **Phase 2 — Cloudflare D1 schema and migrations: not started.** Phase 1 checks pass; this task stops before Phase 2 implementation.
+- **Phase 2 — Cloudflare D1 schema, migrations, seed, and repository: in progress.**
 
 ## Blockers
 
@@ -36,7 +37,7 @@ Updated: 2026-09-28
 
 ## External integration status
 
-- GitHub: public repository [ezpahlevi/NEW](https://github.com/ezpahlevi/NEW) is configured as local `origin`. The Phase 1 commit has not been pushed.
+- GitHub: public repository [ezpahlevi/NEW](https://github.com/ezpahlevi/NEW) is configured as local `origin`; the Phase 1 commit above is pushed to `master`.
 - Cloudflare D1 and Workflows: not configured or deployed.
 - Circle Agent Wallet, Arc RPC, and `NEW.sol`: not configured, queried, or deployed; no transaction was submitted.
 - Vercel: not configured or deployed.

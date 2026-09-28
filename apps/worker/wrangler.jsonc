@@ -3,6 +3,13 @@
   "name": "new-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-28",
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.md"],
+      "fallthrough": false
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

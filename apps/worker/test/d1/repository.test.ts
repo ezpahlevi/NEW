@@ -13,6 +13,16 @@ import {
   getOrCreateRenewalSnapshot,
   RenewalSnapshotError
 } from "../../src/snapshots/renewal-snapshot.ts";
+import {
+  runSpecialistAnalysis,
+  SpecialistAnalysisError,
+  type SpecialistAnalyzers
+} from "../../src/agents/specialists.ts";
+import {
+  AuditorContextSchema,
+  FinanceContextSchema,
+  OperationsContextSchema
+} from "../../src/agents/schemas.ts";
 
 const migrationsDirectory = new URL("../../migrations/", import.meta.url);
 const subscriptionId = "sub_figma_professional";
@@ -314,6 +324,227 @@ describe("D1 schema and demo seed", () => {
   it("returns null for unknown and injection-shaped subscription IDs", async () => {
     assert.equal(await getSubscriptionById(database, "missing"), null);
     assert.equal(await getSubscriptionById(database, "' OR 1 = 1 --"), null);
+  });
+
+  it("runs specialists with distinct evidence contexts and persists one report per role", async () => {
+    const previousRenewalId = "renewal_specialists_previous";
+    const renewalId = "renewal_specialists_success";
+    await database
+      .prepare(
+        `INSERT INTO renewals (
+           id, subscription_id, status, target_plan, target_seats, amount_atomic,
+           created_at, completed_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        previousRenewalId,
+        subscriptionId,
+        "SETTLED",
+        "professional-8-seat",
+        8,
+        "96000000",
+        "2026-10-03T00:00:00.000Z",
+        "2026-10-03T01:00:00.000Z"
+      )
+      .run();
+    await database
+      .prepare(
+        `INSERT INTO decisions (
+           id, renewal_id, action, rationale, target_plan, target_seats,
+           amount_atomic, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        "decision_specialists_previous",
+        previousRenewalId,
+        "KEEP",
+        "The prior subscription state was retained.",
+        "professional-8-seat",
+        8,
+        "96000000",
+        "2026-10-03T00:00:00.000Z"
+      )
+      .run();
+    await database
+      .prepare(
+        "INSERT INTO renewals (id, subscription_id, status, created_at) VALUES (?, ?, ?, ?)"
+      )
+      .bind(renewalId, subscriptionId, "ANALYZING", "2026-09-28T00:00:00.000Z")
+      .run();
+
+    const contexts: {
+      OPERATIONS?: unknown;
+      FINANCE?: unknown;
+      AUDITOR?: unknown;
+    } = {};
+    const called: string[] = [];
+    const analyzers: SpecialistAnalyzers = {
+      OPERATIONS: async (context) => {
+        called.push("OPERATIONS");
+        contexts.OPERATIONS = context;
+        return {
+          verdict: "KEEP",
+          reasonCodes: ["CURRENT_USAGE"],
+          summary: "Three seats show current use.",
+          evidenceRefs: ["usage:sub_figma_professional:seat-count"]
+        };
+      },
+      FINANCE: async (context) => {
+        called.push("FINANCE");
+        contexts.FINANCE = context;
+        return {
+          verdict: "DOWNGRADE",
+          reasonCodes: ["LOW_UTILIZATION", "AVOIDABLE_COST"],
+          summary: "Only three of eight purchased seats are active.",
+          evidenceRefs: [
+            "usage:sub_figma_professional:seat-count",
+            "billing:sub_figma_professional:renewal-prices"
+          ]
+        };
+      },
+      AUDITOR: async (context) => {
+        called.push("AUDITOR");
+        contexts.AUDITOR = context;
+        return {
+          verdict: "DOWNGRADE",
+          reasonCodes: ["UNUSED_SEATS"],
+          summary: "Five purchased seats have no active usage evidence.",
+          evidenceRefs: ["usage:sub_figma_professional:seat-count"]
+        };
+      }
+    };
+
+    const reports = await runSpecialistAnalysis({
+      database,
+      renewalId,
+      subscriptionId,
+      model: "test-model",
+      agents: analyzers,
+      now: () => "2026-09-28T01:00:00.000Z"
+    });
+
+    assert.deepEqual(called.sort(), ["AUDITOR", "FINANCE", "OPERATIONS"]);
+    assert.equal(reports.length, 3);
+    assert.deepEqual(reports.map((report) => report.role), [
+      "OPERATIONS",
+      "FINANCE",
+      "AUDITOR"
+    ]);
+    assert.deepEqual(reports.map((report) => report.verdict), [
+      "KEEP",
+      "DOWNGRADE",
+      "DOWNGRADE"
+    ]);
+    assert.equal(reports.every((report) => report.model === "test-model"), true);
+    assert.equal(reports.every((report) => report.createdAt === "2026-09-28T01:00:00.000Z"), true);
+
+    const operationsContext = OperationsContextSchema.parse(contexts.OPERATIONS);
+    const financeContext = FinanceContextSchema.parse(contexts.FINANCE);
+    const auditorContext = AuditorContextSchema.parse(contexts.AUDITOR);
+    assert.equal(operationsContext.snapshotHash, financeContext.snapshotHash);
+    assert.equal(operationsContext.snapshotHash, auditorContext.snapshotHash);
+    assert.equal(operationsContext.snapshotVersion, financeContext.snapshotVersion);
+    assert.equal(financeContext.snapshotVersion, auditorContext.snapshotVersion);
+    assert.equal("renewalPriceAtomic" in operationsContext.subscription, false);
+    assert.equal("billingEvidence" in operationsContext, false);
+    assert.equal("billingEvidence" in financeContext, true);
+    assert.equal("previousRenewal" in operationsContext, false);
+    assert.equal(operationsContext.previousDecision?.id, previousRenewalId);
+    assert.equal(financeContext.previousRenewal?.amountAtomic, "96000000");
+    assert.equal(auditorContext.previousRenewal?.targetSeats, 8);
+    assert.equal(
+      "targetPlan" in (financeContext.previousRenewal ?? {}),
+      false
+    );
+
+    const repeated = await runSpecialistAnalysis({
+      database,
+      renewalId,
+      subscriptionId,
+      model: "different-model",
+      agents: {
+        OPERATIONS: async () => { throw new Error("existing reports should be reused"); },
+        FINANCE: async () => { throw new Error("existing reports should be reused"); },
+        AUDITOR: async () => { throw new Error("existing reports should be reused"); }
+      }
+    });
+    assert.deepEqual(repeated, reports);
+  });
+
+  it("rejects invented evidence and malformed role outputs without persisting partial reports", async () => {
+    const renewalId = "renewal_specialists_invalid";
+    await database
+      .prepare(
+        "INSERT INTO renewals (id, subscription_id, status, created_at) VALUES (?, ?, ?, ?)"
+      )
+      .bind(renewalId, subscriptionId, "ANALYZING", "2026-09-28T00:00:00.000Z")
+      .run();
+
+    const invalidEvidenceAgents: SpecialistAnalyzers = {
+      OPERATIONS: async () => ({
+        verdict: "KEEP",
+        reasonCodes: ["CURRENT_USAGE"],
+        summary: "Supported usage exists.",
+        evidenceRefs: ["invoice_not_in_snapshot"]
+      }),
+      FINANCE: async () => ({
+        verdict: "DOWNGRADE",
+        reasonCodes: ["LOW_UTILIZATION"],
+        summary: "Usage is low.",
+        evidenceRefs: []
+      }),
+      AUDITOR: async () => ({
+        verdict: "DOWNGRADE",
+        reasonCodes: ["UNUSED_SEATS"],
+        summary: "Unused seats are evidenced.",
+        evidenceRefs: []
+      })
+    };
+
+    await assert.rejects(
+      runSpecialistAnalysis({
+        database,
+        renewalId,
+        subscriptionId,
+        model: "test-model",
+        agents: invalidEvidenceAgents
+      }),
+      (error: unknown) =>
+        error instanceof SpecialistAnalysisError &&
+        error.code === "SPECIALIST_EVIDENCE_INVALID"
+    );
+    const reportCount = await database
+      .prepare("SELECT COUNT(*) AS count FROM agent_reports WHERE renewal_id = ?")
+      .bind(renewalId)
+      .first<{ count: number }>();
+    assert.equal(reportCount?.count, 0);
+
+    const invalidOutputAgents: SpecialistAnalyzers = {
+      ...invalidEvidenceAgents,
+      OPERATIONS: async () => ({
+        verdict: "KEEP",
+        reasonCodes: ["UNSUPPORTED_OPERATIONS_CODE"],
+        summary: "This is not part of the operations schema.",
+        evidenceRefs: []
+      })
+    };
+    await assert.rejects(
+      runSpecialistAnalysis({
+        database,
+        renewalId,
+        subscriptionId,
+        model: "test-model",
+        agents: invalidOutputAgents
+      }),
+      (error: unknown) =>
+        error instanceof SpecialistAnalysisError &&
+        error.code === "SPECIALIST_OUTPUT_INVALID"
+    );
+    const reportsAfterInvalidOutput = await database
+      .prepare("SELECT COUNT(*) AS count FROM agent_reports WHERE renewal_id = ?")
+      .bind(renewalId)
+      .first<{ count: number }>();
+    assert.equal(reportsAfterInvalidOutput?.count, 0);
   });
 
   it("rejects non-integer atomic amounts", async () => {

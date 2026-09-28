@@ -18,3 +18,10 @@
 | `SNAPSHOT_PARTIAL` | Only one of the persisted renewal snapshot JSON or hash fields is present. |
 | `SNAPSHOT_CORRUPT` | Persisted snapshot JSON is noncanonical, invalid, or does not match its SHA-256 hash. |
 | `SNAPSHOT_PERSIST_FAILED` | Snapshot initialization lost a write race and no complete persisted snapshot was available to read back. |
+| `AGENT_CONFIGURATION_MISSING` | Specialist execution requires an LLM API key and model ID; no agent call was made. |
+| `SPECIALIST_GENERATION_FAILED` | A specialist model call failed; no reports were persisted. |
+| `SPECIALIST_OUTPUT_INVALID` | A specialist output failed its role-specific Zod schema. |
+| `SPECIALIST_EVIDENCE_INVALID` | A specialist cited an evidence ID that was not visible in its snapshot context. |
+| `AGENT_REPORTS_INCOMPLETE` | Some but not all three specialist reports exist for the renewal. |
+| `AGENT_REPORTS_CORRUPT` | A stored specialist report failed validation. |
+| `AGENT_REPORT_PERSIST_FAILED` | The three reports could not be written and read back as one complete set. |

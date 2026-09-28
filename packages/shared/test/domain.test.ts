@@ -47,6 +47,8 @@ describe("shared domain schemas", () => {
       currentSeats: 8,
       activeSeats: 9,
       renewalPriceAtomic: "96000000",
+      downgradePlan: "professional-3-seat",
+      downgradePriceAtomic: "36000000",
       renewalDate: "2026-10-01",
       vendorWallet: null,
       status: "ACTIVE"

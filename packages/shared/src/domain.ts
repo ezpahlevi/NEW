@@ -55,6 +55,8 @@ export const SubscriptionSchema = z
     currentSeats: SeatCountSchema,
     activeSeats: SeatCountSchema,
     renewalPriceAtomic: AtomicUsdcAmountSchema,
+    downgradePlan: NonEmptyStringSchema,
+    downgradePriceAtomic: AtomicUsdcAmountSchema,
     renewalDate: NonEmptyStringSchema,
     vendorWallet: EvmAddressSchema.nullable(),
     status: NonEmptyStringSchema

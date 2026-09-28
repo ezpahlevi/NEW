@@ -8,8 +8,8 @@ export const EvmAddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 
 export const TransactionHashSchema = z.string().regex(/^0x[a-fA-F0-9]{64}$/);
 
-export const ARC_TESTNET_CHAIN_ID = 5042002;
-export const ArcTestnetChainIdSchema = z.literal(ARC_TESTNET_CHAIN_ID);
+export const ARC_CHAIN_ID = 5042;
+export const ArcChainIdSchema = z.literal(ARC_CHAIN_ID);
 
 export const ControllerActionSchema = z.enum([
   "KEEP",
@@ -144,7 +144,7 @@ export const EscrowStateSchema = z
     renewalId: NonEmptyStringSchema,
     status: EscrowStatusSchema,
     contractAddress: EvmAddressSchema.nullable(),
-    chainId: ArcTestnetChainIdSchema.nullable(),
+    chainId: ArcChainIdSchema.nullable(),
     openTxHash: NullableHashSchema,
     amountAtomic: NullableAtomicAmountSchema,
     expiresAt: z.string().nullable()

@@ -17,6 +17,38 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Apply local D1 migrations
+        working-directory: apps/worker
+        run: npx wrangler d1 migrations apply new-app --local
+      - name: Verify local Figma seed
+        working-directory: apps/worker
+        run: |
+          D1_FIGMA_SEED_JSON="$(npx wrangler d1 execute new-app --local --command "SELECT id, name, current_plan, current_seats, active_seats, renewal_price_atomic, downgrade_plan, downgrade_price_atomic, vendor_wallet FROM subscriptions WHERE id = 'sub_figma_professional'" --json)" node --input-type=module <<'NODE'
+          const [result] = JSON.parse(process.env.D1_FIGMA_SEED_JSON ?? "null");
+
+          if (
+            result?.success !== true ||
+            !Array.isArray(result.results) ||
+            result.results.length !== 1
+          ) {
+            throw new Error("Local D1 Figma seed readback did not return exactly one row");
+          }
+
+          const [row] = result.results;
+          if (
+            row.id !== "sub_figma_professional" ||
+            row.name !== "Figma Professional" ||
+            row.current_plan !== "professional-8-seat" ||
+            row.current_seats !== 8 ||
+            row.active_seats !== 3 ||
+            row.renewal_price_atomic !== "96000000" ||
+            row.downgrade_plan !== "professional-3-seat" ||
+            row.downgrade_price_atomic !== "36000000" ||
+            row.vendor_wallet !== null
+          ) {
+            throw new Error("Local D1 Figma seed readback did not match the expected fixture");
+          }
+          NODE
       - run: npm test
       - run: npm run typecheck
       - run: npm run build

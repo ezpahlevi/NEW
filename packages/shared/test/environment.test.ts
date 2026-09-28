@@ -22,14 +22,37 @@ describe("environment schemas", () => {
     );
     assert.equal(
       WorkerEnvironmentSchema.safeParse({ ARC_CHAIN_ID: "5042" }).success,
+      true
+    );
+    assert.equal(
+      WorkerEnvironmentSchema.safeParse({ ARC_CHAIN_ID: "5042002" }).success,
       false
     );
     assert.equal(
       WorkerEnvironmentSchema.parse({
         ARC_RPC_URL: "https://rpc.example.test",
-        ARC_CHAIN_ID: "5042002"
+        ARC_CHAIN_ID: "5042"
       }).ARC_CHAIN_ID,
-      5042002
+      5042
+    );
+  });
+
+  it("defaults mainnet execution to disabled and validates explicit settings", () => {
+    assert.equal(WorkerEnvironmentSchema.parse({}).MAINNET_EXECUTION_ENABLED, false);
+    assert.equal(
+      WorkerEnvironmentSchema.parse({ MAINNET_EXECUTION_ENABLED: "false" })
+        .MAINNET_EXECUTION_ENABLED,
+      false
+    );
+    assert.equal(
+      WorkerEnvironmentSchema.parse({ MAINNET_EXECUTION_ENABLED: "true" })
+        .MAINNET_EXECUTION_ENABLED,
+      true
+    );
+    assert.equal(
+      WorkerEnvironmentSchema.safeParse({ MAINNET_EXECUTION_ENABLED: "yes" })
+        .success,
+      false
     );
   });
 

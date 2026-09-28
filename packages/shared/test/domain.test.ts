@@ -49,6 +49,27 @@ describe("shared domain schemas", () => {
       renewalPriceAtomic: "96000000",
       downgradePlan: "professional-3-seat",
       downgradePriceAtomic: "36000000",
+      downgradeSeats: 3,
+      renewalDate: "2026-10-01",
+      vendorWallet: null,
+      status: "ACTIVE"
+    });
+
+    assert.equal(result.success, false);
+  });
+
+  it("requires a positive configured downgrade seat count", () => {
+    const result = SubscriptionSchema.safeParse({
+      id: "sub-1",
+      name: "Figma Professional",
+      vendor: "Figma",
+      currentPlan: "professional-8-seat",
+      currentSeats: 8,
+      activeSeats: 3,
+      renewalPriceAtomic: "96000000",
+      downgradePlan: "professional-3-seat",
+      downgradePriceAtomic: "36000000",
+      downgradeSeats: 0,
       renewalDate: "2026-10-01",
       vendorWallet: null,
       status: "ACTIVE"

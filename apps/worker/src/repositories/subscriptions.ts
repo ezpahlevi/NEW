@@ -10,6 +10,7 @@ interface SubscriptionRow {
   renewal_price_atomic: string;
   downgrade_plan: string;
   downgrade_price_atomic: string;
+  downgrade_seats: number | null;
   renewal_date: string;
   vendor_wallet: string | null;
   status: string;
@@ -25,6 +26,7 @@ const subscriptionColumns = `
   renewal_price_atomic,
   downgrade_plan,
   downgrade_price_atomic,
+  downgrade_seats,
   renewal_date,
   vendor_wallet,
   status
@@ -41,6 +43,7 @@ function toSubscription(row: SubscriptionRow): Subscription {
     renewalPriceAtomic: row.renewal_price_atomic,
     downgradePlan: row.downgrade_plan,
     downgradePriceAtomic: row.downgrade_price_atomic,
+    downgradeSeats: row.downgrade_seats,
     renewalDate: row.renewal_date,
     vendorWallet: row.vendor_wallet,
     status: row.status

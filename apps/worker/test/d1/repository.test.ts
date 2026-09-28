@@ -4,11 +4,16 @@ import { readFile, readdir } from "node:fs/promises";
 import { after, before, describe, it } from "node:test";
 import { Miniflare } from "miniflare";
 import { getSubscriptionById, listSubscriptions } from "../../src/repositories/subscriptions.ts";
+import {
+  DemoSaaSProvider,
+  DemoSaaSProviderError
+} from "../../src/providers/demo-saas.ts";
 
 const migrationsDirectory = new URL("../../migrations/", import.meta.url);
 const subscriptionId = "sub_figma_professional";
 let miniflare: Miniflare;
 let database: D1Database;
+let demoSaaSProvider: DemoSaaSProvider;
 
 before(async () => {
   miniflare = new Miniflare({
@@ -27,6 +32,7 @@ before(async () => {
     ]
   });
   database = await miniflare.getD1Database("DB");
+  demoSaaSProvider = new DemoSaaSProvider(database);
 
   const migrationFiles = (await readdir(migrationsDirectory))
     .filter((name) => name.endsWith(".sql"))
@@ -45,7 +51,7 @@ after(async () => {
 });
 
 describe("D1 schema and demo seed", () => {
-  it("creates the eight canonical application tables", async () => {
+  it("creates the eight canonical tables and persisted demo provider state", async () => {
     const result = await database
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB '_cf_*' ORDER BY name"
@@ -58,6 +64,7 @@ describe("D1 schema and demo seed", () => {
         "activity_log",
         "agent_reports",
         "decisions",
+        "demo_provider_state",
         "escrows",
         "evidence",
         "renewals",
@@ -82,12 +89,68 @@ describe("D1 schema and demo seed", () => {
         renewalPriceAtomic: "96000000",
         downgradePlan: "professional-3-seat",
         downgradePriceAtomic: "36000000",
+        downgradeSeats: 3,
         renewalDate: "2026-10-01",
         vendorWallet: null,
         status: "ACTIVE"
       }
     ]);
     assert.deepEqual(subscription, subscriptions[0]);
+  });
+
+  it("seeds Figma vendor state and applies the configured downgrade idempotently", async () => {
+    assert.deepEqual(
+      await demoSaaSProvider.getSubscriptionState(subscriptionId),
+      { plan: "professional-8-seat", seats: 8, active: true }
+    );
+
+    const fulfilledState = await demoSaaSProvider.applyPlanChange(subscriptionId);
+    assert.deepEqual(fulfilledState, {
+      plan: "professional-3-seat",
+      seats: 3,
+      active: true
+    });
+    assert.deepEqual(
+      await demoSaaSProvider.applyPlanChange(subscriptionId),
+      fulfilledState
+    );
+
+    const subscription = await getSubscriptionById(database, subscriptionId);
+    assert.equal(subscription?.currentPlan, "professional-8-seat");
+    assert.equal(subscription?.currentSeats, 8);
+  });
+
+  it("resets provider state from the persisted subscription baseline", async () => {
+    await demoSaaSProvider.applyPlanChange(subscriptionId);
+
+    assert.deepEqual(await demoSaaSProvider.resetDemoState(subscriptionId), {
+      plan: "professional-8-seat",
+      seats: 8,
+      active: true
+    });
+  });
+
+  it("returns stable errors for unknown subscriptions and conflicting vendor state", async () => {
+    await assert.rejects(
+      demoSaaSProvider.getSubscriptionState("missing"),
+      (error: unknown) =>
+        error instanceof DemoSaaSProviderError &&
+        error.code === "SUBSCRIPTION_NOT_FOUND"
+    );
+
+    await database
+      .prepare(
+        "UPDATE demo_provider_state SET plan = ?, seats = ? WHERE subscription_id = ?"
+      )
+      .bind("unrecognized-plan", 2, subscriptionId)
+      .run();
+
+    await assert.rejects(
+      demoSaaSProvider.applyPlanChange(subscriptionId),
+      (error: unknown) =>
+        error instanceof DemoSaaSProviderError &&
+        error.code === "DEMO_PROVIDER_STATE_CONFLICT"
+    );
   });
 
   it("returns null for unknown and injection-shaped subscription IDs", async () => {

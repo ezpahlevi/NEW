@@ -57,6 +57,7 @@ export const SubscriptionSchema = z
     renewalPriceAtomic: AtomicUsdcAmountSchema,
     downgradePlan: NonEmptyStringSchema,
     downgradePriceAtomic: AtomicUsdcAmountSchema,
+    downgradeSeats: z.number().int().positive(),
     renewalDate: NonEmptyStringSchema,
     vendorWallet: EvmAddressSchema.nullable(),
     status: NonEmptyStringSchema
@@ -71,6 +72,14 @@ export const SubscriptionSchema = z
       });
     }
   });
+
+export const DemoSaaSSubscriptionStateSchema = z
+  .object({
+    plan: NonEmptyStringSchema,
+    seats: SeatCountSchema,
+    active: z.boolean()
+  })
+  .strict();
 
 export const RenewalSchema = z
   .object({
@@ -166,6 +175,9 @@ export type AtomicUsdcAmount = z.infer<typeof AtomicUsdcAmountSchema>;
 export type ControllerAction = z.infer<typeof ControllerActionSchema>;
 export type WorkerHealthResponse = z.infer<typeof WorkerHealthResponseSchema>;
 export type Subscription = z.infer<typeof SubscriptionSchema>;
+export type DemoSaaSSubscriptionState = z.infer<
+  typeof DemoSaaSSubscriptionStateSchema
+>;
 export type Renewal = z.infer<typeof RenewalSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type AgentRole = z.infer<typeof AgentRoleSchema>;

@@ -23,7 +23,7 @@ jobs:
       - name: Verify local Figma seed
         working-directory: apps/worker
         run: |
-          D1_FIGMA_SEED_JSON="$(npx wrangler d1 execute new-app --local --command "SELECT id, name, current_plan, current_seats, active_seats, renewal_price_atomic, downgrade_plan, downgrade_price_atomic, vendor_wallet FROM subscriptions WHERE id = 'sub_figma_professional'" --json)" node --input-type=module <<'NODE'
+          D1_FIGMA_SEED_JSON="$(npx wrangler d1 execute new-app --local --command "SELECT id, name, current_plan, current_seats, active_seats, renewal_price_atomic, downgrade_plan, downgrade_price_atomic, downgrade_seats, vendor_wallet FROM subscriptions WHERE id = 'sub_figma_professional'" --json)" node --input-type=module <<'NODE'
           const [result] = JSON.parse(process.env.D1_FIGMA_SEED_JSON ?? "null");
 
           if (
@@ -44,9 +44,31 @@ jobs:
             row.renewal_price_atomic !== "96000000" ||
             row.downgrade_plan !== "professional-3-seat" ||
             row.downgrade_price_atomic !== "36000000" ||
+            row.downgrade_seats !== 3 ||
             row.vendor_wallet !== null
           ) {
             throw new Error("Local D1 Figma seed readback did not match the expected fixture");
+          }
+          NODE
+          D1_PROVIDER_STATE_JSON="$(npx wrangler d1 execute new-app --local --command "SELECT subscription_id, plan, seats, active FROM demo_provider_state WHERE subscription_id = 'sub_figma_professional'" --json)" node --input-type=module <<'NODE'
+          const [result] = JSON.parse(process.env.D1_PROVIDER_STATE_JSON ?? "null");
+
+          if (
+            result?.success !== true ||
+            !Array.isArray(result.results) ||
+            result.results.length !== 1
+          ) {
+            throw new Error("Local D1 DemoSaaSProvider readback did not return exactly one row");
+          }
+
+          const [row] = result.results;
+          if (
+            row.subscription_id !== "sub_figma_professional" ||
+            row.plan !== "professional-8-seat" ||
+            row.seats !== 8 ||
+            row.active !== 1
+          ) {
+            throw new Error("Local D1 DemoSaaSProvider readback did not match the expected fixture");
           }
           NODE
       - run: npm test

@@ -1,0 +1,25 @@
+{
+  "name": "new",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.9.3",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "workspaces": [
+    "packages/shared",
+    "apps/worker",
+    "apps/web"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace @new/shared && npm run test --workspace @new/worker",
+    "typecheck": "npm run typecheck --workspace @new/shared && npm run typecheck --workspace @new/worker && npm run typecheck --workspace @new/web",
+    "build": "npm run build --workspace @new/shared && npm run build --workspace @new/worker && npm run build --workspace @new/web"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.13",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "6.0.3"
+  }
+}

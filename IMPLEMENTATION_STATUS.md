@@ -21,13 +21,13 @@ Updated: 2026-09-28
 
 ## Current phase
 
-- **Phase 2 — local schema, migrations, seed execution, repository, mainnet configuration, and execution gate are implemented on `feat/phase-2-d1-foundation`; [PR #1 is open for review](https://github.com/ezpahlevi/NEW/pull/1).** The deterministic seed keeps `vendor_wallet` as `NULL` until a real Arc Mainnet vendor address is deliberately configured. The CI workflow now applies migrations and verifies the seed through Wrangler; merge and Phase 3 wait for that check to pass.
+- **Phase 2 — local schema, migrations, seed execution, repository, mainnet configuration, and execution gate are implemented on `feat/phase-2-d1-foundation`; [PR #1 is open for review](https://github.com/ezpahlevi/NEW/pull/1).** The deterministic seed keeps `vendor_wallet` as `NULL` until a real Arc Mainnet vendor address is deliberately configured. The latest PR checks pass, including Wrangler migration application and seed readback. Phase 3 has not started.
 
 ## Blockers
 
 - A configured Arc Mainnet vendor wallet address is needed to populate the Figma seed before real payment integration; `vendor_wallet` remains `NULL` until then.
 - A remote Cloudflare D1 database has not been provisioned. Current migrations and data validation are local only.
-- No Phase 2 code or local validation failures remain. Merge is gated on the Wrangler migration smoke test passing on the current PR head.
+- No Phase 2 implementation, local validation, or current PR CI failures remain.
 
 ## Tests currently passing
 
@@ -37,12 +37,12 @@ Updated: 2026-09-28
 - `npm run build` — passed; Worker used `wrangler deploy --dry-run` only, and the Next.js production build succeeded.
 - `npx wrangler d1 migrations apply new-app --local` — both migrations applied successfully to local D1.
 - `npx wrangler d1 execute new-app --local --command "SELECT id, name, current_plan, current_seats, active_seats, renewal_price_atomic, downgrade_plan, downgrade_price_atomic, vendor_wallet FROM subscriptions" --json` — read back the seeded Figma Professional row and integer atomic plan prices from local D1.
-- GitHub Actions applies D1 migrations with Wrangler in local mode and checks the deterministic seed readback before the remaining CI checks; the current PR head must pass this step before merge.
+- GitHub Actions on the current PR head passed; it applies D1 migrations through Wrangler in local mode, checks the deterministic seed readback, and then runs the remaining CI checks.
 - `git diff --check` — passed. No lint script is configured.
 
 ## External integration status
 
-- GitHub: Phase 1 is pushed to `master`; Phase 2 branch `feat/phase-2-d1-foundation` is pushed and [PR #1](https://github.com/ezpahlevi/NEW/pull/1) is open.
+- GitHub: Phase 1 is pushed to `master`; Phase 2 branch `feat/phase-2-d1-foundation` is pushed and [PR #1](https://github.com/ezpahlevi/NEW/pull/1) is open with passing checks.
 - Cloudflare D1: local binding and migrations are configured and validated; remote D1 is not provisioned. Cloudflare Workflows are not implemented.
 - DemoSaaSProvider, Mastra agents, `NEW.sol`, Circle Agent Wallet, Arc RPC, and transaction flows are not implemented or invoked. Circle Agent Wallet support for Arc Mainnet is unverified and must be checked at the live-integration phase; Circle remains behind the future `WalletAdapter`.
 - Vercel is not configured or deployed. No credentials or keys were added to repository files, and no transactions were submitted.

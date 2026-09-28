@@ -4,7 +4,9 @@ import {
   AtomicUsdcAmountSchema,
   ControllerActionSchema,
   ControllerDecisionProposalSchema,
-  SubscriptionSchema
+  SubscriptionSchema,
+  canonicalizeJson,
+  sha256Hex
 } from "../src/index.ts";
 
 describe("shared domain schemas", () => {
@@ -76,5 +78,31 @@ describe("shared domain schemas", () => {
     });
 
     assert.equal(result.success, false);
+  });
+
+  it("canonicalizes object keys recursively while preserving array order", () => {
+    assert.equal(
+      canonicalizeJson({ z: 1, a: { y: 2, x: 3 }, items: ["b", "a"] }),
+      '{"a":{"x":3,"y":2},"items":["b","a"],"z":1}'
+    );
+  });
+
+  it("rejects values that are not deterministic JSON numbers or objects", () => {
+    assert.throws(() => canonicalizeJson({ price: 36.5 }), TypeError);
+    assert.throws(() => canonicalizeJson({ value: undefined }), TypeError);
+    assert.throws(() => canonicalizeJson(new Date("2026-01-01")), TypeError);
+    assert.throws(() => canonicalizeJson(new Array(1)), TypeError);
+  });
+
+  it("produces a stable 32-byte SHA-256 digest for canonical JSON", async () => {
+    const first = await sha256Hex(canonicalizeJson({ b: 2, a: 1 }));
+    const second = await sha256Hex(canonicalizeJson({ a: 1, b: 2 }));
+
+    assert.match(first, /^0x[a-f0-9]{64}$/);
+    assert.equal(
+      first,
+      "0x43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    );
+    assert.equal(first, second);
   });
 });

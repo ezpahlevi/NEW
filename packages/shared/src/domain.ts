@@ -81,6 +81,61 @@ export const DemoSaaSSubscriptionStateSchema = z
   })
   .strict();
 
+export const RenewalSnapshotSchema = z
+  .object({
+    version: z.literal(1),
+    subscription: z
+      .object({
+        id: NonEmptyStringSchema,
+        name: NonEmptyStringSchema,
+        vendor: NonEmptyStringSchema,
+        currentPlan: NonEmptyStringSchema,
+        currentSeats: SeatCountSchema,
+        activeSeats: SeatCountSchema,
+        renewalPriceAtomic: AtomicUsdcAmountSchema,
+        downgradePlan: NonEmptyStringSchema,
+        downgradePriceAtomic: AtomicUsdcAmountSchema,
+        downgradeSeats: z.number().int().positive(),
+        renewalDate: NonEmptyStringSchema,
+        status: NonEmptyStringSchema
+      })
+      .strict(),
+    previousRenewal: z
+      .object({
+        id: NonEmptyStringSchema,
+        status: RenewalStatusSchema,
+        action: ControllerActionSchema.nullable(),
+        targetPlan: z.string().nullable(),
+        targetSeats: SeatCountSchema.nullable(),
+        amountAtomic: NullableAtomicAmountSchema,
+        createdAt: NonEmptyStringSchema,
+        completedAt: z.string().nullable()
+      })
+      .strict()
+      .nullable(),
+    usageEvidence: z.array(
+      z
+        .object({
+          id: NonEmptyStringSchema,
+          purchasedSeats: SeatCountSchema,
+          activeSeats: SeatCountSchema
+        })
+        .strict()
+    ),
+    billingEvidence: z.array(
+      z
+        .object({
+          id: NonEmptyStringSchema,
+          renewalPriceAtomic: AtomicUsdcAmountSchema,
+          downgradePlan: NonEmptyStringSchema,
+          downgradeSeats: z.number().int().positive(),
+          downgradePriceAtomic: AtomicUsdcAmountSchema
+        })
+        .strict()
+    )
+  })
+  .strict();
+
 export const RenewalSchema = z
   .object({
     id: NonEmptyStringSchema,
@@ -178,6 +233,7 @@ export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type DemoSaaSSubscriptionState = z.infer<
   typeof DemoSaaSSubscriptionStateSchema
 >;
+export type RenewalSnapshot = z.infer<typeof RenewalSnapshotSchema>;
 export type Renewal = z.infer<typeof RenewalSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type AgentRole = z.infer<typeof AgentRoleSchema>;

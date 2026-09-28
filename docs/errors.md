@@ -12,3 +12,9 @@
 | `DEMO_PROVIDER_INACTIVE` | The demo vendor cannot apply a plan change to an inactive subscription. |
 | `DEMO_PROVIDER_PLAN_INVALID` | The configured demo downgrade seat count is not lower than the current seat count. |
 | `DEMO_PROVIDER_STATE_CONFLICT` | Persisted vendor state differs from both the expected baseline and the already-fulfilled target state. |
+| `RENEWAL_NOT_FOUND` | No renewal exists for the requested ID. |
+| `RENEWAL_SUBSCRIPTION_MISMATCH` | The renewal does not belong to the requested subscription or its subscription row is missing. |
+| `SNAPSHOT_STATE_INVALID` | A snapshot cannot be initialized after a renewal has left its initial analysis states. |
+| `SNAPSHOT_PARTIAL` | Only one of the persisted renewal snapshot JSON or hash fields is present. |
+| `SNAPSHOT_CORRUPT` | Persisted snapshot JSON is noncanonical, invalid, or does not match its SHA-256 hash. |
+| `SNAPSHOT_PERSIST_FAILED` | Snapshot initialization lost a write race and no complete persisted snapshot was available to read back. |

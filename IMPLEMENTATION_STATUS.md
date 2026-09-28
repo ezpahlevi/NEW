@@ -20,7 +20,7 @@ Updated: 2026-09-28
 
 ## Current phase
 
-- **Phase 2 — implementation complete on `feat/phase-2-d1-foundation`; awaiting PR review.** The PRD calls for a configured Arc test vendor wallet for the Figma seed, but no address is present in the repository configuration. The deterministic seed therefore keeps `vendor_wallet` as `NULL`; no address was invented.
+- **Phase 2 — implementation complete on `feat/phase-2-d1-foundation`; [PR #1 is open for review](https://github.com/ezpahlevi/NEW/pull/1).** The PRD calls for a configured Arc test vendor wallet for the Figma seed, but no address is present in the repository configuration. The deterministic seed therefore keeps `vendor_wallet` as `NULL`; no address was invented.
 
 ## Blockers
 
@@ -35,12 +35,12 @@ Updated: 2026-09-28
 - `npm run typecheck` — passed for shared, Worker (including D1 tests), and Next.js workspaces.
 - `npm run build` — passed; Worker used `wrangler deploy --dry-run` only, and the Next.js production build succeeded.
 - `npx wrangler d1 migrations apply new-app --local` — both migrations applied successfully to local D1.
-- `npx wrangler d1 execute new-app --local ...` — read back the seeded Figma Professional row and integer atomic plan prices from local D1.
+- `npx wrangler d1 execute new-app --local --command "SELECT id, name, current_plan, current_seats, active_seats, renewal_price_atomic, downgrade_plan, downgrade_price_atomic, vendor_wallet FROM subscriptions" --json` — read back the seeded Figma Professional row and integer atomic plan prices from local D1.
 - `git diff --check` — passed. No lint script is configured.
 
 ## External integration status
 
-- GitHub: Phase 1 is pushed to `master`; Phase 2 work is on `feat/phase-2-d1-foundation` for review.
+- GitHub: Phase 1 is pushed to `master`; Phase 2 branch `feat/phase-2-d1-foundation` is pushed and [PR #1](https://github.com/ezpahlevi/NEW/pull/1) is open.
 - Cloudflare D1: local binding and migrations are configured and validated; remote D1 is not provisioned. Cloudflare Workflows are not implemented.
 - DemoSaaSProvider, Mastra agents, `NEW.sol`, Circle Agent Wallet, Arc RPC, and transaction flows are not implemented or invoked.
 - Vercel is not configured or deployed. No credentials were read or written and no transactions were submitted.

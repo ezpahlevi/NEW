@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { after, before, describe, it } from "node:test";
 import { Miniflare } from "miniflare";
-import { canonicalizeJson } from "@new/shared";
+import {
+  canonicalizeJson,
+  type ControllerAction
+} from "@new/shared";
 import { getSubscriptionById, listSubscriptions } from "../../src/repositories/subscriptions.ts";
 import {
   DemoSaaSProvider,
@@ -19,6 +22,11 @@ import {
   type SpecialistAnalyzers
 } from "../../src/agents/specialists.ts";
 import {
+  ControllerDecisionError,
+  type ControllerDecisionErrorCode,
+  runControllerDecision
+} from "../../src/agents/controller.ts";
+import {
   AuditorContextSchema,
   FinanceContextSchema,
   OperationsContextSchema
@@ -29,6 +37,94 @@ const subscriptionId = "sub_figma_professional";
 let miniflare: Miniflare;
 let database: D1Database;
 let demoSaaSProvider: DemoSaaSProvider;
+
+const usageEvidenceId = "usage:sub_figma_professional:seat-count";
+const billingEvidenceId = "billing:sub_figma_professional:renewal-prices";
+const allowedControllerActions = [
+  "KEEP",
+  "DOWNGRADE",
+  "CANCEL",
+  "NEEDS_REVIEW"
+] as const;
+
+async function createControllerFixture(
+  renewalId: string,
+  options: { reports?: boolean; reportEvidenceRef?: string } = {}
+) {
+  await database
+    .prepare(
+      "INSERT INTO renewals (id, subscription_id, status, created_at) VALUES (?, ?, ?, ?)"
+    )
+    .bind(renewalId, subscriptionId, "ANALYZING", "2026-09-28T00:00:00.000Z")
+    .run();
+  const snapshot = await getOrCreateRenewalSnapshot(
+    database,
+    renewalId,
+    subscriptionId
+  );
+
+  if (options.reports === false) return snapshot;
+
+  const operationsRefs = [options.reportEvidenceRef ?? usageEvidenceId];
+  await database.batch([
+    database
+      .prepare(
+        `INSERT INTO agent_reports (
+           id, renewal_id, role, verdict, reason_codes_json, summary,
+           evidence_refs_json, model, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        `report-${renewalId}-operations`,
+        renewalId,
+        "OPERATIONS",
+        "KEEP",
+        '["CURRENT_USAGE"]',
+        "The subscription has active workflow usage.",
+        JSON.stringify(operationsRefs),
+        "test-model",
+        "2026-09-28T01:00:00.000Z"
+      ),
+    database
+      .prepare(
+        `INSERT INTO agent_reports (
+           id, renewal_id, role, verdict, reason_codes_json, summary,
+           evidence_refs_json, model, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        `report-${renewalId}-finance`,
+        renewalId,
+        "FINANCE",
+        "DOWNGRADE",
+        '["LOW_UTILIZATION"]',
+        "Only three of eight seats are active.",
+        JSON.stringify([usageEvidenceId, billingEvidenceId]),
+        "test-model",
+        "2026-09-28T01:00:00.000Z"
+      ),
+    database
+      .prepare(
+        `INSERT INTO agent_reports (
+           id, renewal_id, role, verdict, reason_codes_json, summary,
+           evidence_refs_json, model, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        `report-${renewalId}-auditor`,
+        renewalId,
+        "AUDITOR",
+        "DOWNGRADE",
+        '["UNUSED_SEATS"]',
+        "Five paid seats show no active usage.",
+        JSON.stringify([usageEvidenceId, billingEvidenceId]),
+        "test-model",
+        "2026-09-28T01:00:00.000Z"
+      )
+  ]);
+
+  return snapshot;
+}
 
 before(async () => {
   miniflare = new Miniflare({
@@ -545,6 +641,285 @@ describe("D1 schema and demo seed", () => {
       .bind(renewalId)
       .first<{ count: number }>();
     assert.equal(reportsAfterInvalidOutput?.count, 0);
+  });
+
+  it("binds the Controller decision to verified plan data and reuses its D1 readback", async () => {
+    const renewalId = "renewal_controller_downgrade";
+    const snapshot = await createControllerFixture(renewalId);
+    let contextSnapshotHash: string | undefined;
+
+    const runInput = {
+      database,
+      renewalId,
+      subscriptionId,
+      allowedActions: [...allowedControllerActions],
+      analyze: async (context: { snapshotHash: string }) => {
+        contextSnapshotHash = context.snapshotHash;
+        return {
+          action: "DOWNGRADE",
+          targetPlan: "professional-3-seat",
+          targetSeats: 3,
+          rationale: "The active team needs three seats.",
+          supportingEvidenceRefs: [usageEvidenceId, billingEvidenceId]
+        };
+      },
+      now: () => "2026-09-28T02:00:00.000Z"
+    };
+
+    const decision = await runControllerDecision(runInput);
+    assert.equal(contextSnapshotHash, snapshot.snapshotHash);
+    assert.deepEqual(decision.decision, {
+      action: "DOWNGRADE",
+      targetPlan: "professional-3-seat",
+      targetSeats: 3,
+      amountAtomic: "36000000",
+      rationale: "The active team needs three seats.",
+      supportingEvidenceRefs: [usageEvidenceId, billingEvidenceId]
+    });
+    assert.equal(decision.createdAt, "2026-09-28T02:00:00.000Z");
+
+    const renewal = await database
+      .prepare("SELECT status, target_plan, target_seats, amount_atomic FROM renewals WHERE id = ?")
+      .bind(renewalId)
+      .first<{
+        status: string;
+        target_plan: string | null;
+        target_seats: number | null;
+        amount_atomic: string | null;
+      }>();
+    assert.deepEqual(renewal, {
+      status: "CONTROLLER_DECISION",
+      target_plan: "professional-3-seat",
+      target_seats: 3,
+      amount_atomic: "36000000"
+    });
+
+    const persistedRefs = await database
+      .prepare("SELECT supporting_evidence_refs_json FROM decisions WHERE renewal_id = ?")
+      .bind(renewalId)
+      .first<{ supporting_evidence_refs_json: string }>();
+    assert.equal(
+      persistedRefs?.supporting_evidence_refs_json,
+      JSON.stringify([usageEvidenceId, billingEvidenceId])
+    );
+
+    const replay = await runControllerDecision({
+      ...runInput,
+      analyze: async () => {
+        throw new Error("persisted decisions must be reused");
+      }
+    });
+    assert.deepEqual(replay, decision);
+
+    await database
+      .prepare(
+        "UPDATE decisions SET supporting_evidence_refs_json = ? WHERE renewal_id = ?"
+      )
+      .bind('["evidence:invented"]', renewalId)
+      .run();
+    await assert.rejects(
+      runControllerDecision({
+        ...runInput,
+        analyze: async () => {
+          throw new Error("corrupt decisions must fail readback");
+        }
+      }),
+      (error: unknown) =>
+        error instanceof ControllerDecisionError &&
+        error.code === "CONTROLLER_DECISION_CORRUPT"
+    );
+  });
+
+  it("binds KEEP to the current plan price and leaves non-payment actions unpriced", async () => {
+    const cases: Array<{
+      renewalId: string;
+      action: ControllerAction;
+      targetPlan: string | null;
+      targetSeats: number | null;
+      expectedAmount: string | null;
+    }> = [
+      {
+        renewalId: "renewal_controller_keep",
+        action: "KEEP",
+        targetPlan: "professional-8-seat",
+        targetSeats: 8,
+        expectedAmount: "96000000"
+      },
+      {
+        renewalId: "renewal_controller_cancel",
+        action: "CANCEL",
+        targetPlan: null,
+        targetSeats: null,
+        expectedAmount: null
+      },
+      {
+        renewalId: "renewal_controller_review",
+        action: "NEEDS_REVIEW",
+        targetPlan: null,
+        targetSeats: null,
+        expectedAmount: null
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      await createControllerFixture(testCase.renewalId);
+      const result = await runControllerDecision({
+        database,
+        renewalId: testCase.renewalId,
+        subscriptionId,
+        allowedActions: [...allowedControllerActions],
+        analyze: async () => ({
+          action: testCase.action,
+          targetPlan: testCase.targetPlan,
+          targetSeats: testCase.targetSeats,
+          rationale: "This follows the evidence and allowed action set.",
+          supportingEvidenceRefs: [usageEvidenceId]
+        })
+      });
+      assert.equal(result.decision.amountAtomic, testCase.expectedAmount);
+    }
+  });
+
+  it("rejects model amounts, unallowed actions, unsupported plans, and invented evidence", async () => {
+    const cases: Array<{
+      renewalId: string;
+      proposal: unknown;
+      allowedActions: ControllerAction[];
+      expectedCode: ControllerDecisionErrorCode;
+    }> = [
+      {
+        renewalId: "renewal_controller_model_amount",
+        proposal: {
+          action: "DOWNGRADE",
+          targetPlan: "professional-3-seat",
+          targetSeats: 3,
+          amountAtomic: "1",
+          rationale: "Use the lower plan.",
+          supportingEvidenceRefs: [usageEvidenceId]
+        },
+        allowedActions: [...allowedControllerActions],
+        expectedCode: "CONTROLLER_OUTPUT_INVALID"
+      },
+      {
+        renewalId: "renewal_controller_disallowed_action",
+        proposal: {
+          action: "CANCEL",
+          targetPlan: null,
+          targetSeats: null,
+          rationale: "Cancel this subscription.",
+          supportingEvidenceRefs: [usageEvidenceId]
+        },
+        allowedActions: ["KEEP"],
+        expectedCode: "CONTROLLER_ACTION_NOT_ALLOWED"
+      },
+      {
+        renewalId: "renewal_controller_unsupported_plan",
+        proposal: {
+          action: "DOWNGRADE",
+          targetPlan: "professional-2-seat",
+          targetSeats: 2,
+          rationale: "Use a smaller plan.",
+          supportingEvidenceRefs: [usageEvidenceId]
+        },
+        allowedActions: [...allowedControllerActions],
+        expectedCode: "CONTROLLER_PLAN_INVALID"
+      },
+      {
+        renewalId: "renewal_controller_invented_evidence",
+        proposal: {
+          action: "DOWNGRADE",
+          targetPlan: "professional-3-seat",
+          targetSeats: 3,
+          rationale: "Use the verified smaller plan.",
+          supportingEvidenceRefs: ["invoice:invented"]
+        },
+        allowedActions: [...allowedControllerActions],
+        expectedCode: "CONTROLLER_EVIDENCE_INVALID"
+      },
+      {
+        renewalId: "renewal_controller_empty_evidence",
+        proposal: {
+          action: "DOWNGRADE",
+          targetPlan: "professional-3-seat",
+          targetSeats: 3,
+          rationale: "Use the verified smaller plan.",
+          supportingEvidenceRefs: []
+        },
+        allowedActions: [...allowedControllerActions],
+        expectedCode: "CONTROLLER_EVIDENCE_INVALID"
+      }
+    ];
+
+    for (const testCase of cases) {
+      await createControllerFixture(testCase.renewalId);
+      await assert.rejects(
+        runControllerDecision({
+          database,
+          renewalId: testCase.renewalId,
+          subscriptionId,
+          allowedActions: testCase.allowedActions,
+          analyze: async () => testCase.proposal
+        }),
+        (error: unknown) =>
+          error instanceof ControllerDecisionError &&
+          error.code === testCase.expectedCode
+      );
+      const persisted = await database
+        .prepare(
+          `SELECT r.status, COUNT(d.id) AS decision_count
+           FROM renewals AS r LEFT JOIN decisions AS d ON d.renewal_id = r.id
+           WHERE r.id = ? GROUP BY r.id`
+        )
+        .bind(testCase.renewalId)
+        .first<{ status: string; decision_count: number }>();
+      assert.deepEqual(persisted, {
+        status: "ANALYZING",
+        decision_count: 0
+      });
+    }
+  });
+
+  it("requires complete persisted reports and rejects invalid report evidence before generation", async () => {
+    const incompleteRenewalId = "renewal_controller_no_reports";
+    await createControllerFixture(incompleteRenewalId, { reports: false });
+    let called = false;
+    await assert.rejects(
+      runControllerDecision({
+        database,
+        renewalId: incompleteRenewalId,
+        subscriptionId,
+        allowedActions: [...allowedControllerActions],
+        analyze: async () => {
+          called = true;
+          return {};
+        }
+      }),
+      (error: unknown) =>
+        error instanceof SpecialistAnalysisError &&
+        error.code === "AGENT_REPORTS_INCOMPLETE"
+    );
+    assert.equal(called, false);
+
+    const invalidEvidenceRenewalId = "renewal_controller_invalid_report_evidence";
+    await createControllerFixture(invalidEvidenceRenewalId, {
+      reportEvidenceRef: "evidence:invented"
+    });
+    await assert.rejects(
+      runControllerDecision({
+        database,
+        renewalId: invalidEvidenceRenewalId,
+        subscriptionId,
+        allowedActions: [...allowedControllerActions],
+        analyze: async () => {
+          called = true;
+          return {};
+        }
+      }),
+      (error: unknown) =>
+        error instanceof ControllerDecisionError &&
+        error.code === "CONTROLLER_EVIDENCE_INVALID"
+    );
+    assert.equal(called, false);
   });
 
   it("rejects non-integer atomic amounts", async () => {

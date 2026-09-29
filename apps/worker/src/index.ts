@@ -1,5 +1,9 @@
 import { Hono } from "hono";
 export { runSpecialistAnalysis } from "./agents/specialists.ts";
+export {
+  runControllerDecision,
+  ControllerDecisionError
+} from "./agents/controller.ts";
 import type { WorkerEnvironment } from "@new/shared";
 import {
   ControllerActionSchema,
@@ -13,6 +17,13 @@ export async function createSpecialistAgents(
   environment: Pick<WorkerEnvironment, "LLM_API_KEY" | "LLM_MODEL">
 ) {
   const { createSpecialistAgents: create } = await import("./agents/index.ts");
+  return create(environment);
+}
+
+export async function createControllerAgent(
+  environment: Pick<WorkerEnvironment, "LLM_API_KEY" | "LLM_MODEL">
+) {
+  const { createControllerAgent: create } = await import("./agents/index.ts");
   return create(environment);
 }
 

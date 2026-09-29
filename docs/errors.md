@@ -25,3 +25,11 @@
 | `AGENT_REPORTS_INCOMPLETE` | Some but not all three specialist reports exist for the renewal. |
 | `AGENT_REPORTS_CORRUPT` | A stored specialist report failed validation. |
 | `AGENT_REPORT_PERSIST_FAILED` | The three reports could not be written and read back as one complete set. |
+| `CONTROLLER_GENERATION_FAILED` | The Controller model call failed; no decision was persisted. |
+| `CONTROLLER_OUTPUT_INVALID` | The Controller output failed the strict proposal schema, including if it contains a payment amount. |
+| `CONTROLLER_ACTION_NOT_ALLOWED` | The Controller selected an action outside the backend-supplied action set. |
+| `CONTROLLER_PLAN_INVALID` | The Controller selected unsupported plan terms or the persisted billing data did not match the subscription snapshot. |
+| `CONTROLLER_EVIDENCE_INVALID` | The Controller or a persisted specialist report cited evidence absent from the immutable snapshot. |
+| `CONTROLLER_STATE_INVALID` | The renewal is not ready for a Controller decision or its decision context is invalid. |
+| `CONTROLLER_DECISION_CORRUPT` | A persisted decision failed schema validation or did not match its renewal state. |
+| `CONTROLLER_DECISION_PERSIST_FAILED` | The Controller decision could not be persisted and verified by D1 readback. |

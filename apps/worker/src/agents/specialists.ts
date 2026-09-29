@@ -93,6 +93,17 @@ async function readAgentReports(
     );
 }
 
+export async function getPersistedAgentReports(
+  database: D1Database,
+  renewalId: string
+): Promise<AgentReport[]> {
+  const reports = await readAgentReports(database, renewalId);
+  if (reports.length !== reportRoles.length) {
+    throw new SpecialistAnalysisError("AGENT_REPORTS_INCOMPLETE");
+  }
+  return reports;
+}
+
 function priorDecision(snapshot: RenewalSnapshot) {
   const previous = snapshot.previousRenewal;
   if (previous === null) return null;

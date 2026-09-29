@@ -27,7 +27,7 @@ Updated: 2026-09-30
 ## Current phase
 
 - **Phase 5 is complete and pushed on `feat/phase-2-d1-foundation`; both GitHub Actions checks passed on head `c3135a3`.** [PR #1 remains open and unmerged](https://github.com/ezpahlevi/NEW/pull/1).
-- **Phase 6 is complete locally; its changes are not yet committed, pushed, or validated by GitHub Actions.** The shared `ControllerDecisionProposalSchema` remains unchanged and rejects payment amounts. After committing and pushing this phase, wait for PR CI to pass before starting Phase 7.
+- **Phase 6 is committed as `d7da67d feat: add controller decision binding`, pushed to the same branch, and both GitHub Actions checks passed on that head.** The PR title remains `Build NEW end-to-end`; its description now includes Phase 6 and the full remaining path. `ControllerDecisionProposalSchema` still rejects model-provided payment amounts. Phase 7 may begin after rereading the PRD and this status.
 
 ## Blockers
 
@@ -44,19 +44,18 @@ Updated: 2026-09-30
 - `npm run build` — passed; Wrangler Worker dry-run bundled the Controller and Markdown prompt, and Next.js production build succeeded.
 - `npx wrangler d1 migrations apply new-app --local` — applied `0006_add_decision_evidence_refs.sql` successfully through Wrangler migration discovery.
 - Wrangler D1 readback confirmed the deterministic Figma plan/price seed, `vendor_wallet = NULL`, and the new `decisions.supporting_evidence_refs_json` column.
-- Both GitHub Actions checks passed on the prior Phase 5 head `c3135a3`; Phase 6 CI is pending push.
+- Both GitHub Actions checks passed on Phase 6 head `d7da67d`.
 - `git diff --check` — passed. No lint script is configured.
 
 ## External integration status
 
-- GitHub: Phase 1 is pushed to `master`; Phases 2–5 are pushed on `feat/phase-2-d1-foundation`; both CI checks passed on Phase 5 head `c3135a3`. [PR #1](https://github.com/ezpahlevi/NEW/pull/1) stays open and unmerged. Phase 6 is locally validated and awaits commit, push, and CI.
+- GitHub: Phase 1 is pushed to `master`; Phases 2–6 are pushed on `feat/phase-2-d1-foundation`; both CI checks passed on Phase 6 head `d7da67d`. [PR #1](https://github.com/ezpahlevi/NEW/pull/1) stays open and unmerged.
 - Cloudflare D1: local binding and migrations are configured and validated; remote D1 is not provisioned. Cloudflare Workflows are not implemented.
 - DemoSaaSProvider, immutable snapshots, and all three Mastra specialists are implemented and tested locally. The specialists use an OpenAI Chat Completions adapter; live LLM configuration is unverified and no live analysis has been run. No public fulfillment API route is wired yet. `NEW.sol`, Circle Agent Wallet, Arc RPC, and transaction flows are not implemented or invoked. Circle Agent Wallet support for Arc Mainnet is unverified and must be checked at the live-integration phase; Circle remains behind the future `WalletAdapter`.
 - Vercel is not configured or deployed. No credentials or keys were added to repository files, and no transactions were submitted.
 
 ## Next concrete tasks
 
-1. Commit Phase 6 and push it to `feat/phase-2-d1-foundation` on PR #1; wait for both GitHub Actions checks to pass.
-2. Before Phase 7, reread [docs/PRD.md](docs/PRD.md) and this status file. Then implement decision and terms hashes and validate the phase before proceeding.
-3. Before Workflows become authoritative, add a unique partial index on non-null `renewals.workflow_id` values.
-4. Defer remote D1 provisioning, Mainnet vendor configuration, Circle live integration, contract deployment, and real-money E2E to the final integration phases.
+1. Before Phase 7, reread [docs/PRD.md](docs/PRD.md) and this status file. Then implement decision and terms hashes and validate the phase before proceeding.
+2. Before Workflows become authoritative, add a unique partial index on non-null `renewals.workflow_id` values.
+3. Defer remote D1 provisioning, Mainnet vendor configuration, Circle live integration, contract deployment, and real-money E2E to the final integration phases.

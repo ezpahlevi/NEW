@@ -1044,7 +1044,7 @@ This is a release gate.
 
 MVP chain:
 
-    Arc Testnet
+    Arc Mainnet (chain ID 5042)
 
 Asset:
 
@@ -1060,6 +1060,16 @@ Before deployment:
     verify canonical USDC address
     verify contract address
     verify Wallet policy
+
+Smart contract deployment and real-money end-to-end execution are deferred
+until the final live-integration phases. Before then, use local D1, mocked
+WalletAdapter behavior, Foundry unit tests, and Anvil or another local EVM.
+Do not use Arc Testnet as an intermediate deployment environment.
+
+Keep Circle behind WalletAdapter and verify official Arc Mainnet support at
+the live-integration phase. Real wallet mutations must fail closed while
+MAINNET_EXECUTION_ENABLED is false; this flag defaults to false. Execution
+also requires the Mainnet chain ID and RPC URL to be configured.
 
 
 ======================================================================
@@ -1903,7 +1913,7 @@ Seed one canonical demo subscription:
     36000000
 
     vendor_wallet:
-    configured Arc test address
+    configured Arc Mainnet vendor address; keep NULL until deliberately configured
 
 The demo must start from persisted D1 state.
 

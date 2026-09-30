@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ArcTestnetChainIdSchema, EvmAddressSchema } from "./domain.ts";
+import { ArcChainIdSchema, EvmAddressSchema } from "./domain.ts";
 
 const blankAsUndefined = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? undefined : value;
@@ -25,8 +25,12 @@ const optionalChainId = z.preprocess(
     if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
     return value;
   },
-  ArcTestnetChainIdSchema.optional()
+  ArcChainIdSchema.optional()
 );
+
+const mainnetExecutionEnabled = z
+  .preprocess(blankAsUndefined, z.enum(["true", "false"]).default("false"))
+  .transform((value) => value === "true");
 
 export const WorkerEnvironmentSchema = z
   .object({
@@ -34,6 +38,7 @@ export const WorkerEnvironmentSchema = z
     LLM_MODEL: optionalString,
     ARC_RPC_URL: optionalUrl,
     ARC_CHAIN_ID: optionalChainId,
+    MAINNET_EXECUTION_ENABLED: mainnetExecutionEnabled,
     USDC_ADDRESS: optionalAddress,
     NEW_CONTRACT_ADDRESS: optionalAddress,
     CIRCLE_WALLET_ADDRESS: optionalAddress,

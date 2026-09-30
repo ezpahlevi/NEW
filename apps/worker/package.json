@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "test": "node --experimental-strip-types --test test/*.test.ts",
-    "typecheck": "wrangler types && tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-strip-types --test test/*.test.ts test/d1/*.test.ts",
+    "typecheck": "wrangler types && tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "build": "wrangler deploy --dry-run"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.78",
+    "@mastra/core": "1.71.0",
     "@new/shared": "0.1.0",
     "hono": "4.13.9"
   },
   "devDependencies": {
+    "miniflare": "5.20260926.0-alpha",
     "wrangler": "4.142.0"
   }
 }

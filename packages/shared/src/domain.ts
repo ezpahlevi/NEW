@@ -8,8 +8,8 @@ export const EvmAddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 
 export const TransactionHashSchema = z.string().regex(/^0x[a-fA-F0-9]{64}$/);
 
-export const ARC_TESTNET_CHAIN_ID = 5042002;
-export const ArcTestnetChainIdSchema = z.literal(ARC_TESTNET_CHAIN_ID);
+export const ARC_CHAIN_ID = 5042;
+export const ArcChainIdSchema = z.literal(ARC_CHAIN_ID);
 
 export const ControllerActionSchema = z.enum([
   "KEEP",
@@ -55,6 +55,9 @@ export const SubscriptionSchema = z
     currentSeats: SeatCountSchema,
     activeSeats: SeatCountSchema,
     renewalPriceAtomic: AtomicUsdcAmountSchema,
+    downgradePlan: NonEmptyStringSchema,
+    downgradePriceAtomic: AtomicUsdcAmountSchema,
+    downgradeSeats: z.number().int().positive(),
     renewalDate: NonEmptyStringSchema,
     vendorWallet: EvmAddressSchema.nullable(),
     status: NonEmptyStringSchema
@@ -69,6 +72,69 @@ export const SubscriptionSchema = z
       });
     }
   });
+
+export const DemoSaaSSubscriptionStateSchema = z
+  .object({
+    plan: NonEmptyStringSchema,
+    seats: SeatCountSchema,
+    active: z.boolean()
+  })
+  .strict();
+
+export const RenewalSnapshotSchema = z
+  .object({
+    version: z.literal(1),
+    subscription: z
+      .object({
+        id: NonEmptyStringSchema,
+        name: NonEmptyStringSchema,
+        vendor: NonEmptyStringSchema,
+        currentPlan: NonEmptyStringSchema,
+        currentSeats: SeatCountSchema,
+        activeSeats: SeatCountSchema,
+        renewalPriceAtomic: AtomicUsdcAmountSchema,
+        downgradePlan: NonEmptyStringSchema,
+        downgradePriceAtomic: AtomicUsdcAmountSchema,
+        downgradeSeats: z.number().int().positive(),
+        renewalDate: NonEmptyStringSchema,
+        status: NonEmptyStringSchema
+      })
+      .strict(),
+    previousRenewal: z
+      .object({
+        id: NonEmptyStringSchema,
+        status: RenewalStatusSchema,
+        action: ControllerActionSchema.nullable(),
+        targetPlan: z.string().nullable(),
+        targetSeats: SeatCountSchema.nullable(),
+        amountAtomic: NullableAtomicAmountSchema,
+        createdAt: NonEmptyStringSchema,
+        completedAt: z.string().nullable()
+      })
+      .strict()
+      .nullable(),
+    usageEvidence: z.array(
+      z
+        .object({
+          id: NonEmptyStringSchema,
+          purchasedSeats: SeatCountSchema,
+          activeSeats: SeatCountSchema
+        })
+        .strict()
+    ),
+    billingEvidence: z.array(
+      z
+        .object({
+          id: NonEmptyStringSchema,
+          renewalPriceAtomic: AtomicUsdcAmountSchema,
+          downgradePlan: NonEmptyStringSchema,
+          downgradeSeats: z.number().int().positive(),
+          downgradePriceAtomic: AtomicUsdcAmountSchema
+        })
+        .strict()
+    )
+  })
+  .strict();
 
 export const RenewalSchema = z
   .object({
@@ -113,6 +179,20 @@ export const AgentReportSchema = z
   })
   .strict();
 
+export const RenewalTermsSchema = z
+  .object({
+    subscription: NonEmptyStringSchema,
+    current_plan: NonEmptyStringSchema,
+    target_plan: NonEmptyStringSchema,
+    current_seats: SeatCountSchema,
+    target_seats: SeatCountSchema,
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    amount_atomic: AtomicUsdcAmountSchema,
+    vendor: EvmAddressSchema.nullable()
+  })
+  .strict();
+
 export const ControllerDecisionProposalSchema = z
   .object({
     action: ControllerActionSchema,
@@ -142,7 +222,7 @@ export const EscrowStateSchema = z
     renewalId: NonEmptyStringSchema,
     status: EscrowStatusSchema,
     contractAddress: EvmAddressSchema.nullable(),
-    chainId: ArcTestnetChainIdSchema.nullable(),
+    chainId: ArcChainIdSchema.nullable(),
     openTxHash: NullableHashSchema,
     amountAtomic: NullableAtomicAmountSchema,
     expiresAt: z.string().nullable()
@@ -164,10 +244,15 @@ export type AtomicUsdcAmount = z.infer<typeof AtomicUsdcAmountSchema>;
 export type ControllerAction = z.infer<typeof ControllerActionSchema>;
 export type WorkerHealthResponse = z.infer<typeof WorkerHealthResponseSchema>;
 export type Subscription = z.infer<typeof SubscriptionSchema>;
+export type DemoSaaSSubscriptionState = z.infer<
+  typeof DemoSaaSSubscriptionStateSchema
+>;
+export type RenewalSnapshot = z.infer<typeof RenewalSnapshotSchema>;
 export type Renewal = z.infer<typeof RenewalSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 export type AgentReport = z.infer<typeof AgentReportSchema>;
+export type RenewalTerms = z.infer<typeof RenewalTermsSchema>;
 export type ControllerDecisionProposal = z.infer<
   typeof ControllerDecisionProposalSchema
 >;

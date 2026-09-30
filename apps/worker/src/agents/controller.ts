@@ -19,6 +19,10 @@ import {
   getOrCreateRenewalSnapshot,
   RenewalSnapshotError
 } from "../snapshots/renewal-snapshot.ts";
+import {
+  persistControllerHashes,
+  type PersistedControllerHashes
+} from "./controller-hashes.ts";
 
 export type ControllerDecisionErrorCode =
   | "CONTROLLER_GENERATION_FAILED"
@@ -333,7 +337,7 @@ export async function runControllerDecision(input: {
   allowedActions: ControllerAction[];
   analyze: ControllerAnalyzer;
   now?: () => string;
-}): Promise<PersistedControllerDecision> {
+}): Promise<PersistedControllerDecision & PersistedControllerHashes> {
   const renewal = await loadRenewalState(
     input.database,
     input.renewalId,
@@ -350,16 +354,9 @@ export async function runControllerDecision(input: {
     persistedSnapshot.snapshotHash,
     persistedSnapshot.snapshot
   );
-  if (existing !== null) {
-    if (!input.allowedActions.includes(existing.decision.action)) {
-      throw new ControllerDecisionError("CONTROLLER_ACTION_NOT_ALLOWED");
-    }
-    return existing;
-  }
-  if (renewal.status !== "ANALYZING") {
+  if (existing === null && renewal.status !== "ANALYZING") {
     throw new ControllerDecisionError("CONTROLLER_STATE_INVALID");
   }
-
   let reports;
   try {
     reports = await getPersistedAgentReports(input.database, input.renewalId);
@@ -377,6 +374,20 @@ export async function runControllerDecision(input: {
     throw new ControllerDecisionError("CONTROLLER_EVIDENCE_INVALID");
   }
 
+  if (existing !== null) {
+    if (!input.allowedActions.includes(existing.decision.action)) {
+      throw new ControllerDecisionError("CONTROLLER_ACTION_NOT_ALLOWED");
+    }
+    const hashes = await persistControllerHashes({
+      database: input.database,
+      renewalId: input.renewalId,
+      snapshot: persistedSnapshot.snapshot,
+      snapshotHash: persistedSnapshot.snapshotHash,
+      reports,
+      decision: existing.decision
+    });
+    return { ...existing, ...hashes };
+  }
   let context: ControllerContext;
   try {
     context = ControllerContextSchema.parse({
@@ -414,10 +425,19 @@ export async function runControllerDecision(input: {
     createdAt: (input.now ?? (() => new Date().toISOString()))()
   };
 
-  return persistDecision(
+  const persisted = await persistDecision(
     input.database,
     record,
     persistedSnapshot.snapshotHash,
     persistedSnapshot.snapshot
   );
+  const hashes = await persistControllerHashes({
+    database: input.database,
+    renewalId: input.renewalId,
+    snapshot: persistedSnapshot.snapshot,
+    snapshotHash: persistedSnapshot.snapshotHash,
+    reports,
+    decision: persisted.decision
+  });
+  return { ...persisted, ...hashes };
 }

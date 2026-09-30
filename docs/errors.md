@@ -33,3 +33,7 @@
 | `CONTROLLER_STATE_INVALID` | The renewal is not ready for a Controller decision or its decision context is invalid. |
 | `CONTROLLER_DECISION_CORRUPT` | A persisted decision failed schema validation or did not match its renewal state. |
 | `CONTROLLER_DECISION_PERSIST_FAILED` | The Controller decision could not be persisted and verified by D1 readback. |
+| `RENEWAL_HASH_STATE_INVALID` | Decision hashing found a missing or mismatched persisted snapshot, specialist report set, decision, or renewal state. |
+| `RENEWAL_HASH_CORRUPT` | Persisted decision hash or canonical terms JSON/hash pair failed validation. |
+| `RENEWAL_HASH_PERSIST_FAILED` | Decision and terms hashes could not be persisted and verified through D1 readback. |
+| `RENEWAL_TERMS_INVALID` | Backend-verified decision data could not produce valid canonical payment terms. |

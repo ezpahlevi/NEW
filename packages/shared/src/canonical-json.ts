@@ -1,3 +1,6 @@
+import { keccak_256 } from "@noble/hashes/sha3.js";
+import { utf8ToBytes } from "@noble/hashes/utils.js";
+
 export function canonicalizeJson(value: unknown): string {
   if (value === null) {
     return "null";
@@ -35,6 +38,14 @@ export function canonicalizeJson(value: unknown): string {
   }
 
   throw new TypeError("Canonical JSON contains an unsupported value");
+}
+
+export function keccak256Hex(value: string): `0x${string}` {
+  const digest = keccak_256(utf8ToBytes(value));
+  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+
+  return `0x${hex}`;
 }
 
 export async function sha256Hex(value: string): Promise<`0x${string}`> {

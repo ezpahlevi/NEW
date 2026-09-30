@@ -4,8 +4,10 @@ import {
   AtomicUsdcAmountSchema,
   ControllerActionSchema,
   ControllerDecisionProposalSchema,
+  RenewalTermsSchema,
   SubscriptionSchema,
   canonicalizeJson,
+  keccak256Hex,
   sha256Hex
 } from "../src/index.ts";
 
@@ -104,5 +106,40 @@ describe("shared domain schemas", () => {
       "0x43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
     );
     assert.equal(first, second);
+  });
+
+  it("produces Ethereum Keccak-256 rather than NIST SHA3-256", () => {
+    assert.equal(
+      keccak256Hex(""),
+      "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+    );
+    assert.equal(
+      keccak256Hex("abc"),
+      "0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45"
+    );
+    assert.notEqual(
+      keccak256Hex("abc"),
+      "0x3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"
+    );
+  });
+
+  it("allows an unresolved vendor in canonical terms without inventing an address", () => {
+    const terms = RenewalTermsSchema.parse({
+      subscription: "Figma Professional",
+      current_plan: "professional-8-seat",
+      target_plan: "professional-3-seat",
+      current_seats: 8,
+      target_seats: 3,
+      period_start: "2026-10-01",
+      period_end: "2026-11-01",
+      amount_atomic: "36000000",
+      vendor: null
+    });
+
+    assert.equal(terms.vendor, null);
+    assert.equal(
+      RenewalTermsSchema.safeParse({ ...terms, vendor: "vendor-address" }).success,
+      false
+    );
   });
 });

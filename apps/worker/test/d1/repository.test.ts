@@ -5,6 +5,8 @@ import { after, before, describe, it } from "node:test";
 import { Miniflare } from "miniflare";
 import {
   canonicalizeJson,
+  keccak256Hex,
+  ControllerDecisionSchema,
   type ControllerAction
 } from "@new/shared";
 import { getSubscriptionById, listSubscriptions } from "../../src/repositories/subscriptions.ts";
@@ -26,6 +28,10 @@ import {
   type ControllerDecisionErrorCode,
   runControllerDecision
 } from "../../src/agents/controller.ts";
+import {
+  buildCanonicalRenewalTerms,
+  RenewalHashError
+} from "../../src/agents/controller-hashes.ts";
 import {
   AuditorContextSchema,
   FinanceContextSchema,
@@ -677,22 +683,45 @@ describe("D1 schema and demo seed", () => {
       supportingEvidenceRefs: [usageEvidenceId, billingEvidenceId]
     });
     assert.equal(decision.createdAt, "2026-09-28T02:00:00.000Z");
+    assert.match(decision.decisionHash, /^0x[a-f0-9]{64}$/);
+    assert.match(decision.termsHash ?? "", /^0x[a-f0-9]{64}$/);
+    assert.deepEqual(JSON.parse(decision.termsJson ?? "null"), {
+      subscription: "Figma Professional",
+      current_plan: "professional-8-seat",
+      target_plan: "professional-3-seat",
+      current_seats: 8,
+      target_seats: 3,
+      period_start: "2026-10-01",
+      period_end: "2026-11-01",
+      amount_atomic: "36000000",
+      vendor: null
+    });
+    assert.equal(keccak256Hex(decision.termsJson ?? ""), decision.termsHash);
 
     const renewal = await database
-      .prepare("SELECT status, target_plan, target_seats, amount_atomic FROM renewals WHERE id = ?")
+      .prepare("SELECT status, target_plan, target_seats, amount_atomic, decision_hash, terms_json, terms_hash FROM renewals WHERE id = ?")
       .bind(renewalId)
       .first<{
         status: string;
         target_plan: string | null;
         target_seats: number | null;
         amount_atomic: string | null;
+        decision_hash: string | null;
+        terms_json: string | null;
+        terms_hash: string | null;
       }>();
-    assert.deepEqual(renewal, {
-      status: "CONTROLLER_DECISION",
-      target_plan: "professional-3-seat",
-      target_seats: 3,
-      amount_atomic: "36000000"
-    });
+    assert.equal(renewal?.status, "CONTROLLER_DECISION");
+    assert.equal(renewal?.target_plan, "professional-3-seat");
+    assert.equal(renewal?.target_seats, 3);
+    assert.equal(renewal?.amount_atomic, "36000000");
+    assert.equal(renewal?.decision_hash, decision.decisionHash);
+    assert.equal(renewal?.terms_json, decision.termsJson);
+    assert.equal(renewal?.terms_hash, decision.termsHash);
+    const vendorWallet = await database
+      .prepare("SELECT vendor_wallet FROM subscriptions WHERE id = ?")
+      .bind(subscriptionId)
+      .first<{ vendor_wallet: string | null }>();
+    assert.equal(vendorWallet?.vendor_wallet, null);
 
     const persistedRefs = await database
       .prepare("SELECT supporting_evidence_refs_json FROM decisions WHERE renewal_id = ?")
@@ -712,6 +741,54 @@ describe("D1 schema and demo seed", () => {
     assert.deepEqual(replay, decision);
 
     await database
+      .prepare("UPDATE renewals SET decision_hash = NULL WHERE id = ?")
+      .bind(renewalId)
+      .run();
+    await assert.rejects(
+      runControllerDecision({
+        ...runInput,
+        analyze: async () => {
+          throw new Error("persisted decisions must be reused");
+        }
+      }),
+      (error: unknown) =>
+        error instanceof RenewalHashError &&
+        error.code === "RENEWAL_HASH_CORRUPT"
+    );
+    await database
+      .prepare("UPDATE renewals SET decision_hash = ? WHERE id = ?")
+      .bind(decision.decisionHash, renewalId)
+      .run();
+
+    await database
+      .prepare("UPDATE renewals SET status = 'PREPARING_ESCROW' WHERE id = ?")
+      .bind(renewalId)
+      .run();
+    const lockedReplay = await runControllerDecision({
+      ...runInput,
+      analyze: async () => {
+        throw new Error("persisted decisions must be reused");
+      }
+    });
+    assert.deepEqual(lockedReplay, decision);
+
+    await database
+      .prepare("UPDATE renewals SET terms_json = ? WHERE id = ?")
+      .bind("{}", renewalId)
+      .run();
+    await assert.rejects(
+      runControllerDecision({
+        ...runInput,
+        analyze: async () => {
+          throw new Error("persisted decisions must be reused");
+        }
+      }),
+      (error: unknown) =>
+        error instanceof RenewalHashError &&
+        error.code === "RENEWAL_HASH_CORRUPT"
+    );
+
+    await database
       .prepare(
         "UPDATE decisions SET supporting_evidence_refs_json = ? WHERE renewal_id = ?"
       )
@@ -728,6 +805,85 @@ describe("D1 schema and demo seed", () => {
         error instanceof ControllerDecisionError &&
         error.code === "CONTROLLER_DECISION_CORRUPT"
     );
+  });
+
+  it("uses calendar-month bounds for renewal terms and rejects invalid dates", async () => {
+    const renewalId = "renewal_terms_month_end";
+    const snapshot = await createControllerFixture(renewalId, { reports: false });
+    const decision = ControllerDecisionSchema.parse({
+      action: "DOWNGRADE",
+      targetPlan: "professional-3-seat",
+      targetSeats: 3,
+      amountAtomic: "36000000",
+      rationale: "Use the verified smaller plan.",
+      supportingEvidenceRefs: [usageEvidenceId]
+    });
+    const monthEndSnapshot = {
+      ...snapshot.snapshot,
+      subscription: {
+        ...snapshot.snapshot.subscription,
+        renewalDate: "2026-01-31"
+      }
+    };
+
+    assert.equal(
+      buildCanonicalRenewalTerms(monthEndSnapshot, decision, null)?.period_end,
+      "2026-02-28"
+    );
+    assert.throws(
+      () =>
+        buildCanonicalRenewalTerms(
+          {
+            ...monthEndSnapshot,
+            subscription: {
+              ...monthEndSnapshot.subscription,
+              renewalDate: "2026-02-30"
+            }
+          },
+          decision,
+          null
+        ),
+      (error: unknown) =>
+        error instanceof RenewalHashError &&
+        error.code === "RENEWAL_TERMS_INVALID"
+    );
+  });
+
+  it("rejects a decision hash after a persisted specialist report changes", async () => {
+    const renewalId = "renewal_controller_report_hash";
+    await createControllerFixture(renewalId);
+    const input = {
+      database,
+      renewalId,
+      subscriptionId,
+      allowedActions: [...allowedControllerActions],
+      analyze: async () => ({
+        action: "DOWNGRADE",
+        targetPlan: "professional-3-seat",
+        targetSeats: 3,
+        rationale: "Use the verified smaller plan.",
+        supportingEvidenceRefs: [usageEvidenceId]
+      })
+    };
+
+    const decision = await runControllerDecision(input);
+    await database
+      .prepare("UPDATE agent_reports SET summary = ? WHERE renewal_id = ? AND role = 'FINANCE'")
+      .bind("Changed persisted report", renewalId)
+      .run();
+
+    await assert.rejects(
+      runControllerDecision({
+        ...input,
+        analyze: async () => {
+          throw new Error("persisted decisions must be reused");
+        }
+      }),
+      (error: unknown) =>
+        error instanceof RenewalHashError &&
+        error.code === "RENEWAL_HASH_CORRUPT"
+    );
+    assert.match(decision.decisionHash, /^0x[a-f0-9]{64}$/);
   });
 
   it("binds KEEP to the current plan price and leaves non-payment actions unpriced", async () => {
@@ -777,6 +933,11 @@ describe("D1 schema and demo seed", () => {
         })
       });
       assert.equal(result.decision.amountAtomic, testCase.expectedAmount);
+      assert.match(result.decisionHash, /^0x[a-f0-9]{64}$/);
+      if (testCase.expectedAmount === null) {
+        assert.equal(result.termsJson, null);
+        assert.equal(result.termsHash, null);
+      }
     }
   });
 

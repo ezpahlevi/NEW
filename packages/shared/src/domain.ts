@@ -179,6 +179,20 @@ export const AgentReportSchema = z
   })
   .strict();
 
+export const RenewalTermsSchema = z
+  .object({
+    subscription: NonEmptyStringSchema,
+    current_plan: NonEmptyStringSchema,
+    target_plan: NonEmptyStringSchema,
+    current_seats: SeatCountSchema,
+    target_seats: SeatCountSchema,
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    amount_atomic: AtomicUsdcAmountSchema,
+    vendor: EvmAddressSchema.nullable()
+  })
+  .strict();
+
 export const ControllerDecisionProposalSchema = z
   .object({
     action: ControllerActionSchema,
@@ -238,6 +252,7 @@ export type Renewal = z.infer<typeof RenewalSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 export type AgentReport = z.infer<typeof AgentReportSchema>;
+export type RenewalTerms = z.infer<typeof RenewalTermsSchema>;
 export type ControllerDecisionProposal = z.infer<
   typeof ControllerDecisionProposalSchema
 >;
